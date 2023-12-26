@@ -1,0 +1,1 @@
+python src/main.py --config=qmix --env-config=sc2_gen_protoss
