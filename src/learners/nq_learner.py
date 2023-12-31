@@ -10,6 +10,7 @@ from torch.optim import RMSprop, Adam
 import numpy as np
 from torch.distributions import Categorical
 from utils.th_utils import get_parameters_num
+import math
 
 class NQLearner:
     def __init__(self, mac, scheme, logger, args):
@@ -46,6 +47,8 @@ class NQLearner:
         self.log_stats_t = -self.args.learner_log_interval - 1
         
         self.train_t = 0
+        
+        self.entropy_coef = 0.01
 
         # th.autograd.set_detect_anomaly(True)
         
@@ -68,7 +71,6 @@ class NQLearner:
 
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
-        chosen_action_qvals_ = chosen_action_qvals
 
         # Calculate the Q-Values necessary for the target
         with th.no_grad():
@@ -82,13 +84,21 @@ class NQLearner:
             target_mac_out = th.stack(target_mac_out, dim=1)  # Concat across time
 
             # Max over target Q-Values/ Double q learning
-            mac_out_detach = mac_out.clone().detach()
+            mac_out_detach = mac_out.clone().detach() / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
-            cur_max_actions = mac_out_detach.max(dim=3, keepdim=True)[1]
-            target_max_qvals = th.gather(target_mac_out, 3, cur_max_actions).squeeze(3)
+            actions_pdf = th.softmax(mac_out_detach, dim=-1)
+            rand_idx = th.rand(actions_pdf[:,:,:,:1].shape).to(actions_pdf.device)
+            actions_cdf = th.cumsum(actions_pdf, -1)
+            rand_idx = th.clamp(rand_idx, 1e-6, 1-1e-6)
+            picked_actions = th.searchsorted(actions_cdf, rand_idx)
+            target_qvals = th.gather(target_mac_out.clone(), 3, picked_actions).squeeze(3)
+            
+            target_logp = th.log(actions_pdf)
+            target_logp = th.gather(target_logp, 3, picked_actions).squeeze(3)
+            target_logp = target_logp.sum(-1, keepdim=True) 
             
             # Calculate n-step Q-Learning targets
-            target_max_qvals = self.target_mixer(target_max_qvals, batch["state"])
+            target_qvals = self.target_mixer(target_qvals, batch["state"])
 
             if getattr(self.args, 'q_lambda', False):
                 qvals = th.gather(target_mac_out, 3, batch["actions"]).squeeze(3)
@@ -97,10 +107,11 @@ class NQLearner:
                 targets = build_q_lambda_targets(rewards, terminated, mask, target_max_qvals, qvals,
                                     self.args.gamma, self.args.td_lambda)
             else:
-                targets = build_td_lambda_targets(rewards, terminated, mask, target_max_qvals, 
+                targets = build_td_lambda_targets(rewards, terminated, mask, target_qvals, target_logp*self.entropy_coef,
                                                     self.args.n_agents, self.args.gamma, self.args.td_lambda)
 
         # Mixer
+        naive_sum = chosen_action_qvals.clone().detach().sum(-1)
         chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1])
 
         td_error = (chosen_action_qvals - targets.detach())
@@ -127,6 +138,9 @@ class NQLearner:
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
+            self.logger.log_stat("entropy", -target_logp.mean().item(), t_env)
+            self.logger.log_stat("entropy_coef", self.entropy_coef, t_env)
+            self.logger.log_stat("naive_sum", naive_sum.mean().item(), t_env)
             self.log_stats_t = t_env
             
             # print estimated matrix

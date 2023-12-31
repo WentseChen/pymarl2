@@ -158,6 +158,8 @@ class EpsilonGreedyActionSelector():
                                               decay="linear")
         self.epsilon = self.schedule.eval(0)
         
+        self.entropy_coef = 0.01
+        
 
     def select_action(self, agent_inputs, avail_actions, t_env, test_mode=False):
 
@@ -169,14 +171,23 @@ class EpsilonGreedyActionSelector():
             self.epsilon = 0.0
 
         # mask actions that are excluded from selection
-        masked_q_values = agent_inputs.clone()
-        masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
         
-        random_numbers = th.rand_like(agent_inputs[:, :, 0])
-        pick_random = (random_numbers < self.epsilon).long()
-        random_actions = Categorical(avail_actions.float()).sample().long()
-
-        picked_actions = pick_random * random_actions + (1 - pick_random) * masked_q_values.max(dim=2)[1]
+        # softmax
+        masked_q_values = agent_inputs.clone() / self.entropy_coef
+        masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
+        actions_pdf = th.softmax(masked_q_values, dim=-1)
+        rand_idx = th.rand(actions_pdf[:,:,:1].shape).to(actions_pdf.device)
+        actions_cdf = th.cumsum(actions_pdf, -1)
+        rand_idx = th.clamp(rand_idx, 1e-6, 1-1e-6)
+        picked_actions = th.searchsorted(actions_cdf, rand_idx)
+        # # max + epsilon greedy
+        # masked_q_values = agent_inputs.clone()
+        # masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
+        # random_numbers = th.rand_like(agent_inputs[:, :, 0])
+        # pick_random = (random_numbers < self.epsilon).long()
+        # random_actions = Categorical(avail_actions.float()).sample().long()
+        # picked_actions = pick_random * random_actions + (1 - pick_random) * masked_q_values.max(dim=2)[1]
+        
         return picked_actions
 
 
