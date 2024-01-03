@@ -85,7 +85,7 @@ class ParallelRunner:
         self.t = 0
         self.env_steps_this_run = 0
 
-    def run(self, test_mode=False):
+    def run(self, learner, test_mode=False):
         self.reset()
 
         all_terminated = False
@@ -104,7 +104,8 @@ class ParallelRunner:
             if save_probs:
                 actions, probs = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, bs=envs_not_terminated, test_mode=test_mode)
             else:
-                actions = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, bs=envs_not_terminated, test_mode=test_mode)
+                beta = learner.mixer.beta[0].detach(), learner.mixer.beta[1].detach()
+                actions = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, bs=envs_not_terminated, test_mode=test_mode, beta=beta)
                 
             cpu_actions = actions.to("cpu").numpy()
 

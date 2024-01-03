@@ -26,6 +26,14 @@ class Mixer(nn.Module):
         self.hyper_b2 = nn.Sequential(nn.Linear(self.input_dim, self.embed_dim),
                             nn.ReLU(inplace=True),
                             nn.Linear(self.embed_dim, 1))
+        
+        self.log_beta = nn.Parameter(th.zeros(6))
+    
+    @property
+    def beta(self):
+        beta_w = self.log_beta[:5].exp()
+        beta_b = self.log_beta[5]
+        return beta_w, beta_b
 
     def forward(self, qvals, states):
         # reshape
@@ -46,9 +54,13 @@ class Mixer(nn.Module):
             w1 = w1.abs()
             w2 = w2.abs()
             
+        norm = w1.pow(2).sum(-1).sum(-1)
+        norm = norm + w2.pow(2).sum(-1).sum(-1)
+        norm = norm / 2
+            
         # Forward
         hidden = F.elu(th.matmul(qvals, w1) + b1) # b * t, 1, emb
         y = th.matmul(hidden, w2) + b2 # b * t, 1, 1
         
-        return y.view(b, t, -1)
+        return y.view(b, t, -1), norm.view(b, t, -1)
     
