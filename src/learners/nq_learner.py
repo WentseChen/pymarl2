@@ -41,8 +41,8 @@ class NQLearner:
         print('Mixer Size: ')
         print(get_parameters_num(self.mixer.parameters()))
         
-        self.entropy_coef = 0.003
-        self.beta_coef = 0.
+        self.entropy_coef = 0.01
+        self.beta_coef = 1.
         self.reg_coef = 0.
         self.norm_coef = 0.
 
@@ -137,7 +137,7 @@ class NQLearner:
         
         beta_w = self.mixer.beta[0].detach().reshape([1,1,-1])
         beta_b = self.mixer.beta[1].detach()
-        reg_error = beta_w * chosen_aq_clone + beta_b - chosen_action_qvals
+        reg_error = (beta_w * chosen_aq_clone).sum(-1, keepdim=True) + beta_b - chosen_action_qvals
         reg_error = 0.5 * reg_error.pow(2)
         masked_reg_error = reg_error * mask
         L_reg = masked_reg_error.sum() / mask.sum()
@@ -150,7 +150,7 @@ class NQLearner:
         # beta loss
         beta_w = self.mixer.beta[0].reshape([1,1,-1])
         beta_b = self.mixer.beta[1]
-        beta_error = beta_w * chosen_aq_clone + beta_b - chosen_action_qvals.detach()
+        beta_error = (beta_w * chosen_aq_clone).sum(-1, keepdim=True) + beta_b - chosen_action_qvals.detach()
         beta_error = 0.5 * beta_error.pow(2)
         masked_beta_error = beta_error * mask
         loss_beta = L_beta = masked_beta_error.sum() / mask.sum() + beta_w.pow(2).mean() * 1e-3

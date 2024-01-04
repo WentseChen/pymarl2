@@ -27,12 +27,12 @@ class Mixer(nn.Module):
                             nn.ReLU(inplace=True),
                             nn.Linear(self.embed_dim, 1))
         
-        self.log_beta = nn.Parameter(th.zeros(6))
+        self.log_beta = nn.Parameter(th.zeros(self.n_agents + 1))
     
     @property
     def beta(self):
-        beta_w = self.log_beta[:5].exp()
-        beta_b = self.log_beta[5]
+        beta_w = self.log_beta[:self.n_agents].exp()
+        beta_b = self.log_beta[self.n_agents]
         return beta_w, beta_b
 
     def forward(self, qvals, states):
