@@ -4,38 +4,63 @@ import torch.nn.functional as F
 import numpy as np
 
 class Mixer(nn.Module):
-    def __init__(self, args, abs=True):
+    def __init__(self, args, abs=True, scheme=None):
         super(Mixer, self).__init__()
 
         self.args = args
         self.abs = abs
         self.n_agents = args.n_agents
         self.embed_dim = args.mixing_embed_dim
-        self.input_dim = self.state_dim = int(np.prod(args.state_shape)) 
+        self.input_state_dim = self.state_dim = int(np.prod(args.state_shape)) 
+        self.input_obser_dim = self.obser_dim = int(np.prod(92)) 
         
         # hyper w1 b1
-        self.hyper_w1 = nn.Sequential(nn.Linear(self.input_dim, args.hypernet_embed),
+        self.hyper_w1 = nn.Sequential(nn.Linear(self.input_state_dim, args.hypernet_embed),
                                         nn.ReLU(inplace=True),
                                         nn.Linear(args.hypernet_embed, self.n_agents * self.embed_dim))
-        self.hyper_b1 = nn.Sequential(nn.Linear(self.input_dim, self.embed_dim))
+        self.hyper_b1 = nn.Sequential(nn.Linear(self.input_state_dim, self.embed_dim))
         
         # hyper w2 b2
-        self.hyper_w2 = nn.Sequential(nn.Linear(self.input_dim, args.hypernet_embed),
+        self.hyper_w2 = nn.Sequential(nn.Linear(self.input_state_dim, args.hypernet_embed),
                                         nn.ReLU(inplace=True),
                                         nn.Linear(args.hypernet_embed, self.embed_dim))
-        self.hyper_b2 = nn.Sequential(nn.Linear(self.input_dim, self.embed_dim),
+        self.hyper_b2 = nn.Sequential(nn.Linear(self.input_state_dim, self.embed_dim),
                             nn.ReLU(inplace=True),
                             nn.Linear(self.embed_dim, 1))
         
-        self.log_beta = nn.Parameter(th.zeros(self.n_agents + 1))
-    
-    @property
-    def beta(self):
-        beta_w = self.log_beta[:self.n_agents].exp()
-        beta_b = self.log_beta[self.n_agents]
-        return beta_w, beta_b
+        # hyper w3 b3
+        self.hyper_w3 = nn.Sequential(nn.Linear(self.input_obser_dim, args.hypernet_embed),
+                                        nn.ReLU(inplace=True),
+                                        nn.Linear(args.hypernet_embed, 1))
+        self.hyper_b3 = nn.Sequential(nn.Linear(self.input_obser_dim, self.embed_dim),
+                            nn.ReLU(inplace=True),
+                            nn.Linear(self.embed_dim, 1))
+        
+    # multiply beta and add bias
+    def mbpb(self, qvals, observations):
+        
+        qval_shape = qvals.shape
+        
+        if qval_shape[-2] == self.n_agents:
+            qvals = qvals.reshape(-1, qvals.shape[-1])
+            observations = observations.reshape(-1, observations.shape[-1])
+            w = self.hyper_w3(observations).view(-1, 1)
+            b = self.hyper_b3(observations).view(-1, 1)
+        if qval_shape[-1] == self.n_agents:
+            qvals = qvals.reshape(-1, self.n_agents)
+            observations = observations.reshape(-1, observations.shape[-1])
+            w = self.hyper_w3(observations).view(-1, self.n_agents)
+            b = self.hyper_b3(observations).view(-1, self.n_agents)
+        
+        if self.abs:
+            w = w.abs()
+        
+        y = qvals * w + b 
+        
+        return y.reshape(qval_shape)
 
     def forward(self, qvals, states):
+        
         # reshape
         b, t, _ = qvals.size()
         
@@ -54,13 +79,9 @@ class Mixer(nn.Module):
             w1 = w1.abs()
             w2 = w2.abs()
             
-        norm = w1.pow(2).sum(-1).sum(-1)
-        norm = norm + w2.pow(2).sum(-1).sum(-1)
-        norm = norm / 2
-            
         # Forward
         hidden = F.elu(th.matmul(qvals, w1) + b1) # b * t, 1, emb
         y = th.matmul(hidden, w2) + b2 # b * t, 1, 1
         
-        return y.view(b, t, -1), norm.view(b, t, -1)
+        return y.view(b, t, -1)
     

@@ -163,7 +163,7 @@ class EpsilonGreedyActionSelector():
         self.n_agents = args.n_agents
         
 
-    def select_action(self, agent_inputs, avail_actions, t_env, test_mode=False, beta=None):
+    def select_action(self, agent_inputs, observations, avail_actions, t_env, test_mode=False, mixer=None):
 
         # Assuming agent_inputs is a batch of Q-Values for each agent bav
         self.epsilon = self.schedule.eval(t_env)
@@ -175,8 +175,7 @@ class EpsilonGreedyActionSelector():
         # mask actions that are excluded from selection
         
         # softmax
-        beta_w, beta_b = beta[0].reshape([1,-1,1]), beta[1]
-        masked_q_values = beta_w * agent_inputs.clone() + beta_b / self.n_agents
+        masked_q_values = mixer.mbpb(agent_inputs, observations).detach()
         masked_q_values = masked_q_values / self.entropy_coef
         masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
         actions_pdf = th.softmax(masked_q_values, dim=-1)

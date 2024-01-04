@@ -32,23 +32,14 @@ class NQLearner:
             raise "mixer error"
         self.target_mixer = copy.deepcopy(self.mixer)
         self.params += list(self.mixer.parameters())
-        for i in range(len(self.params)):
-            if self.params[i].flatten()[0] == 0 and self.params[i].shape[0] == 5:
-                self.params.pop(i) # pop beta
-                break
-        self.beta_params = [self.mixer.log_beta]
 
         print('Mixer Size: ')
         print(get_parameters_num(self.mixer.parameters()))
         
         self.entropy_coef = 0.01
-        self.beta_coef = 1.
-        self.reg_coef = 0.
-        self.norm_coef = 0.
 
         if self.args.optimizer == 'adam':
             self.optimiser = Adam(params=self.params,  lr=args.lr)
-            self.beta_optimiser = Adam(params=self.beta_params, lr=args.lr * self.beta_coef)
         else:
             self.optimiser = RMSprop(params=self.params, lr=args.lr, alpha=args.optim_alpha, eps=args.optim_eps)
 
@@ -95,9 +86,8 @@ class NQLearner:
             target_mac_out = th.stack(target_mac_out, dim=1)  # Concat across time
 
             # Max over target Q-Values/ Double q learning
-            beta_w = self.mixer.beta[0].detach().reshape([1,1,-1,1])
-            beta_b = self.mixer.beta[1].detach()
-            mac_out_detach = mac_out.clone().detach() * beta_w + beta_b / self.n_agents
+            mac_out_detach = mac_out.clone().detach()
+            mac_out_detach = self.mixer.mbpb(mac_out_detach, batch["obs"])
             mac_out_detach = mac_out_detach / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
             actions_pdf = th.softmax(mac_out_detach, dim=-1)
@@ -112,7 +102,7 @@ class NQLearner:
             target_logp = target_logp.sum(-1, keepdim=True) 
             
             # Calculate n-step Q-Learning targets
-            target_qvals, _ = self.target_mixer(target_qvals, batch["state"])
+            target_qvals = self.target_mixer(target_qvals, batch["state"])
 
             if getattr(self.args, 'q_lambda', False):
                 qvals = th.gather(target_mac_out, 3, batch["actions"]).squeeze(3)
@@ -127,7 +117,7 @@ class NQLearner:
         # Mixer
         naive_sum = chosen_action_qvals.clone().detach().sum(-1, keepdim=True)
         chosen_aq_clone =  chosen_action_qvals.clone().detach()
-        chosen_action_qvals, norm = self.mixer(chosen_action_qvals, batch["state"][:, :-1])
+        chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1])
 
         td_error = (chosen_action_qvals - targets.detach())
         td_error = 0.5 * td_error.pow(2)
@@ -135,36 +125,20 @@ class NQLearner:
         masked_td_error = td_error * mask
         L_td = masked_td_error.sum() / mask.sum()
         
-        beta_w = self.mixer.beta[0].detach().reshape([1,1,-1])
-        beta_b = self.mixer.beta[1].detach()
-        reg_error = (beta_w * chosen_aq_clone).sum(-1, keepdim=True) + beta_b - chosen_action_qvals
-        reg_error = 0.5 * reg_error.pow(2)
-        masked_reg_error = reg_error * mask
-        L_reg = masked_reg_error.sum() / mask.sum()
-        
-        masked_norm_error = norm * mask
-        L_norm = masked_norm_error.sum() / mask.sum()
-        
-        loss = L_td + L_reg * self.reg_coef + L_norm * self.norm_coef
-        
         # beta loss
-        beta_w = self.mixer.beta[0].reshape([1,1,-1])
-        beta_b = self.mixer.beta[1]
-        beta_error = (beta_w * chosen_aq_clone).sum(-1, keepdim=True) + beta_b - chosen_action_qvals.detach()
+        chosen_aq_clone = self.mixer.mbpb(chosen_aq_clone, batch["obs"][:, :-1])
+        beta_error = chosen_aq_clone.sum(-1, keepdim=True) - chosen_action_qvals.detach()
         beta_error = 0.5 * beta_error.pow(2)
         masked_beta_error = beta_error * mask
-        loss_beta = L_beta = masked_beta_error.sum() / mask.sum() + beta_w.pow(2).mean() * 1e-3
+        L_beta = masked_beta_error.sum() / mask.sum() #+ beta_w.pow(2).mean() * 1e-3
+
+        loss = L_td + L_beta
 
         # Optimise
         self.optimiser.zero_grad()
         loss.backward()
         grad_norm = th.nn.utils.clip_grad_norm_(self.params, self.args.grad_norm_clip)
         self.optimiser.step()
-        
-        self.beta_optimiser.zero_grad()
-        loss_beta.backward()
-        grad_norm = th.nn.utils.clip_grad_norm_(self.beta_params, self.args.grad_norm_clip)
-        self.beta_optimiser.step()
 
         if (episode_num - self.last_target_update_episode) / self.args.target_update_interval >= 1.0:
             self._update_targets()
@@ -173,8 +147,6 @@ class NQLearner:
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
             self.logger.log_stat("loss_td", L_td.item(), t_env)
             self.logger.log_stat("loss_beta", L_beta.item(), t_env)
-            self.logger.log_stat("loss_reg", L_reg.item(), t_env)
-            self.logger.log_stat("loss_norm", L_norm.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
@@ -183,8 +155,6 @@ class NQLearner:
             self.logger.log_stat("entropy", -target_logp.mean().item(), t_env)
             self.logger.log_stat("entropy_coef", self.entropy_coef, t_env)
             self.logger.log_stat("naive_sum", naive_sum.mean().item(), t_env)
-            self.logger.log_stat("beta", self.mixer.beta[0].detach().mean(), t_env)
-            self.logger.log_stat("beta_bias", self.mixer.beta[1].detach(), t_env)
             self.log_stats_t = t_env
             
             # print estimated matrix
