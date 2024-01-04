@@ -87,7 +87,7 @@ class NQLearner:
 
             # Max over target Q-Values/ Double q learning
             mac_out_detach = mac_out.clone().detach()
-            mac_out_detach = self.mixer.mbpb(mac_out_detach, batch["obs"])
+            mac_out_detach = self.target_mixer.mbpb(mac_out_detach, batch["state"])
             mac_out_detach = mac_out_detach / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
             actions_pdf = th.softmax(mac_out_detach, dim=-1)
@@ -121,15 +121,21 @@ class NQLearner:
 
         td_error = (chosen_action_qvals - targets.detach())
         td_error = 0.5 * td_error.pow(2)
+        td_err_clone = td_error.clone().detach()
         mask = mask.expand_as(td_error)
         masked_td_error = td_error * mask
         L_td = masked_td_error.sum() / mask.sum()
         
         # beta loss
-        chosen_aq_clone = self.mixer.mbpb(chosen_aq_clone, batch["obs"][:, :-1])
-        beta_error = chosen_aq_clone.sum(-1, keepdim=True) - chosen_action_qvals.detach()
-        beta_error = 0.5 * beta_error.pow(2)
-        masked_beta_error = beta_error * mask
+        beta = self.mixer.beta(batch["state"][:, :-1]).detach().sum(-1, keepdim=True).pow(2)
+        affine_aq = self.mixer.mbpb(chosen_aq_clone, batch["state"][:, :-1])
+        approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
+        # pmask = (beta_error > 0).float().detach()
+        betai_error = th.clamp(approx_error.clone(), min=0)
+        betai_error = betai_error * ((chosen_aq_clone.pow(2)).sum(-1, keepdim=True) + 1)
+        beta_error = 0.5 * approx_error.pow(2) * beta * td_err_clone 
+        
+        masked_beta_error = beta_error * mask + betai_error * mask
         L_beta = masked_beta_error.sum() / mask.sum() #+ beta_w.pow(2).mean() * 1e-3
 
         loss = L_td + L_beta
@@ -155,6 +161,8 @@ class NQLearner:
             self.logger.log_stat("entropy", -target_logp.mean().item(), t_env)
             self.logger.log_stat("entropy_coef", self.entropy_coef, t_env)
             self.logger.log_stat("naive_sum", naive_sum.mean().item(), t_env)
+            self.logger.log_stat("beta_error", beta_error.mean().item(), t_env)
+            self.logger.log_stat("betai_error", betai_error.mean().item(), t_env)
             self.log_stats_t = t_env
             
             # print estimated matrix

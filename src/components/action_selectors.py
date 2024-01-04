@@ -163,34 +163,24 @@ class EpsilonGreedyActionSelector():
         self.n_agents = args.n_agents
         
 
-    def select_action(self, agent_inputs, observations, avail_actions, t_env, test_mode=False, mixer=None):
+    def select_action(self, agent_inputs, states, avail_actions, t_env, test_mode=False, mixer=None):
 
         # Assuming agent_inputs is a batch of Q-Values for each agent bav
         self.epsilon = self.schedule.eval(t_env)
 
         if test_mode:
-            # Greedy action selection only
-            self.epsilon = 0.0
-
-        # mask actions that are excluded from selection
-        
-        # softmax
-        masked_q_values = mixer.mbpb(agent_inputs, observations).detach()
-        masked_q_values = masked_q_values / self.entropy_coef
-        masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
-        actions_pdf = th.softmax(masked_q_values, dim=-1)
-        rand_idx = th.rand(actions_pdf[:,:,:1].shape).to(actions_pdf.device)
-        actions_cdf = th.cumsum(actions_pdf, -1)
-        rand_idx = th.clamp(rand_idx, 1e-6, 1-1e-6)
-        picked_actions = th.searchsorted(actions_cdf, rand_idx)
-        
-        # # max + epsilon greedy
-        # masked_q_values = agent_inputs.clone()
-        # masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
-        # random_numbers = th.rand_like(agent_inputs[:, :, 0])
-        # pick_random = (random_numbers < self.epsilon).long()
-        # random_actions = Categorical(avail_actions.float()).sample().long()
-        # picked_actions = pick_random * random_actions + (1 - pick_random) * masked_q_values.max(dim=2)[1]
+            agent_inputs[avail_actions == 0] = -float("inf")  # should never be selected!
+            picked_actions = agent_inputs.argmax(dim=2)
+            picked_actions = picked_actions.unsqueeze(-1)
+        else:
+            masked_q_values = mixer.mbpb(agent_inputs, states).detach()
+            masked_q_values = masked_q_values / self.entropy_coef
+            masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
+            actions_pdf = th.softmax(masked_q_values, dim=-1)
+            rand_idx = th.rand(actions_pdf[:,:,:1].shape).to(actions_pdf.device)
+            actions_cdf = th.cumsum(actions_pdf, -1)
+            rand_idx = th.clamp(rand_idx, 1e-6, 1-1e-6)
+            picked_actions = th.searchsorted(actions_cdf, rand_idx)
         
         return picked_actions
 

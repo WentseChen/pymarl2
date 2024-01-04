@@ -13,9 +13,9 @@ class NMAC(BasicMAC):
     def select_actions(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False, mixer=None):
         # Only select actions for the selected batch elements in bs
         avail_actions = ep_batch["avail_actions"][:, t_ep]
-        observations = ep_batch["obs"][:, t_ep]
+        states = ep_batch["state"][:, t_ep]
         qvals = self.forward(ep_batch, t_ep, test_mode=test_mode)
-        chosen_actions = self.action_selector.select_action(qvals[bs], observations[bs], avail_actions[bs], t_env, test_mode=test_mode, mixer=mixer)
+        chosen_actions = self.action_selector.select_action(qvals[bs], states[bs], avail_actions[bs], t_env, test_mode=test_mode, mixer=mixer)
         return chosen_actions
 
     def forward(self, ep_batch, t, test_mode=False):
