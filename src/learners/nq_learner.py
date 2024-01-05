@@ -36,7 +36,7 @@ class NQLearner:
         print('Mixer Size: ')
         print(get_parameters_num(self.mixer.parameters()))
         
-        self.entropy_coef = 0.01
+        self.entropy_coef = 0.1
 
         if self.args.optimizer == 'adam':
             self.optimiser = Adam(params=self.params,  lr=args.lr)
@@ -121,24 +121,14 @@ class NQLearner:
 
         td_error = (chosen_action_qvals - targets.detach())
         td_error = 0.5 * td_error.pow(2)
-        td_err_clone = td_error.clone().detach()
         mask = mask.expand_as(td_error)
         masked_td_error = td_error * mask
-        L_td = masked_td_error.sum() / mask.sum()
+        L_td = loss = masked_td_error.sum() / mask.sum()
         
         # beta loss
-        beta = self.mixer.beta(batch["state"][:, :-1]).detach().sum(-1, keepdim=True).pow(2)
         affine_aq = self.mixer.mbpb(chosen_aq_clone, batch["state"][:, :-1])
         approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
-        # pmask = (beta_error > 0).float().detach()
-        betai_error = th.clamp(approx_error.clone(), min=0)
-        betai_error = betai_error * ((chosen_aq_clone.pow(2)).sum(-1, keepdim=True) + 1)
-        beta_error = 0.5 * approx_error.pow(2) * beta * td_err_clone 
-        
-        masked_beta_error = beta_error * mask + betai_error * mask
-        L_beta = masked_beta_error.sum() / mask.sum() #+ beta_w.pow(2).mean() * 1e-3
-
-        loss = L_td + L_beta
+        beta_error = approx_error.pow(2).detach().mean()
 
         # Optimise
         self.optimiser.zero_grad()
@@ -152,7 +142,7 @@ class NQLearner:
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
             self.logger.log_stat("loss_td", L_td.item(), t_env)
-            self.logger.log_stat("loss_beta", L_beta.item(), t_env)
+            self.logger.log_stat("loss_beta", beta_error.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
@@ -161,8 +151,6 @@ class NQLearner:
             self.logger.log_stat("entropy", -target_logp.mean().item(), t_env)
             self.logger.log_stat("entropy_coef", self.entropy_coef, t_env)
             self.logger.log_stat("naive_sum", naive_sum.mean().item(), t_env)
-            self.logger.log_stat("beta_error", beta_error.mean().item(), t_env)
-            self.logger.log_stat("betai_error", betai_error.mean().item(), t_env)
             self.log_stats_t = t_env
             
             # print estimated matrix
