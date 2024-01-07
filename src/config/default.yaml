@@ -18,7 +18,7 @@ buffer_cpu_only: True # If true we won't keep all of the replay buffer in vram
 
 # --- Logging options ---
 use_tensorboard: False # Log results to tensorboard
-use_wandb: true
+use_wandb: false
 project: "SMAC"
 entity: "cwz19"
 group: "ungrouped"

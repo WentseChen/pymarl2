@@ -87,7 +87,7 @@ class NQLearner:
 
             # Max over target Q-Values/ Double q learning
             mac_out_detach = mac_out.clone().detach()
-            mac_out_detach = self.target_mixer.mbpb(mac_out_detach, batch["state"])
+            mac_out_detach = self.target_mixer.mbpb(mac_out_detach, batch["state"], t_env)
             mac_out_detach = mac_out_detach / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
             actions_pdf = th.softmax(mac_out_detach, dim=-1)
@@ -97,12 +97,16 @@ class NQLearner:
             picked_actions = th.searchsorted(actions_cdf, rand_idx)
             target_qvals = th.gather(target_mac_out.clone(), 3, picked_actions).squeeze(3)
             
-            target_logp = th.log(actions_pdf)
-            target_logp = th.gather(target_logp, 3, picked_actions).squeeze(3)
-            target_logp = target_logp.sum(-1, keepdim=True) 
+            # target_logp = th.log(actions_pdf)
+            # target_logp = th.gather(target_logp, 3, picked_actions).squeeze(3)
+            # target_entropy = -target_logp.sum(-1, keepdim=True) 
+            
+            logp_inf2zero = th.where(th.log(actions_pdf)==-th.inf, 0, th.log(actions_pdf))
+            target_entropy = -actions_pdf * logp_inf2zero
+            target_entropy = target_entropy.sum(-1).sum(-1, keepdim=True)
             
             # Calculate n-step Q-Learning targets
-            target_qvals = self.target_mixer(target_qvals, batch["state"])
+            target_qvals = self.target_mixer(target_qvals, batch["state"], batch["actions"])
 
             if getattr(self.args, 'q_lambda', False):
                 qvals = th.gather(target_mac_out, 3, batch["actions"]).squeeze(3)
@@ -111,31 +115,27 @@ class NQLearner:
                 targets = build_q_lambda_targets(rewards, terminated, mask, target_max_qvals, qvals,
                                     self.args.gamma, self.args.td_lambda)
             else:
-                targets = build_td_lambda_targets(rewards, terminated, mask, target_qvals, target_logp*self.entropy_coef,
+                targets = build_td_lambda_targets(rewards, terminated, mask, target_qvals, target_entropy*self.entropy_coef,
                                                     self.args.n_agents, self.args.gamma, self.args.td_lambda)
 
         # Mixer
         naive_sum = chosen_action_qvals.clone().detach().sum(-1, keepdim=True)
-        chosen_aq_clone =  chosen_action_qvals.clone().detach()
-        chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1])
+        chosen_aq_clone = chosen_action_qvals.clone().detach()
+        chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1], batch["actions"][:, :-1])
 
         td_error = (chosen_action_qvals - targets.detach())
         td_error = 0.5 * td_error.pow(2)
-        td_err_clone = td_error.clone().detach()
         mask = mask.expand_as(td_error)
         masked_td_error = td_error * mask
         L_td = masked_td_error.sum() / mask.sum()
         
         # beta loss
-        beta = self.mixer.beta(batch["state"][:, :-1])
-        beta_sq = beta.pow(2).sum(-1, keepdim=True)
-        affine_aq = self.mixer.mbpb(chosen_aq_clone, batch["state"][:, :-1])
+        affine_aq = self.mixer.mbpb(chosen_aq_clone, batch["state"][:, :-1], t_env)
         approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
-        beta_coef = (td_err_clone * beta_sq).detach().mean()
-        beta_error = 0.5 * approx_error.pow(2) * td_err_clone * beta_sq / (beta_sq + 1e-8)
+        beta_error = 0.5 * approx_error.pow(2)
         
         masked_beta_error = beta_error * mask
-        L_beta = masked_beta_error.sum() / mask.sum() #+ beta_w.pow(2).mean() * 1e-3
+        L_beta = masked_beta_error.sum() / mask.sum() 
 
         loss = L_td + L_beta
 
@@ -157,11 +157,10 @@ class NQLearner:
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
-            self.logger.log_stat("entropy", -target_logp.mean().item(), t_env)
+            self.logger.log_stat("entropy", target_entropy.mean().item(), t_env)
             self.logger.log_stat("entropy_coef", self.entropy_coef, t_env)
             self.logger.log_stat("naive_sum", naive_sum.mean().item(), t_env)
             self.logger.log_stat("beta_error", beta_error.mean().item(), t_env)
-            self.logger.log_stat("beta_coef", beta_coef.item(), t_env)
             self.log_stats_t = t_env
             
             # print estimated matrix
