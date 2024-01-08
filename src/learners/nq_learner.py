@@ -91,11 +91,12 @@ class NQLearner:
             mac_out_detach = mac_out_detach / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
             actions_pdf = th.softmax(mac_out_detach, dim=-1)
-            rand_idx = th.rand(actions_pdf[:,:,:,:1].shape).to(actions_pdf.device)
-            actions_cdf = th.cumsum(actions_pdf, -1)
-            rand_idx = th.clamp(rand_idx, 1e-6, 1-1e-6)
-            picked_actions = th.searchsorted(actions_cdf, rand_idx)
-            target_qvals = th.gather(target_mac_out.clone(), 3, picked_actions).squeeze(3)
+            # rand_idx = th.rand(actions_pdf[:,:,:,:1].shape).to(actions_pdf.device)
+            # actions_cdf = th.cumsum(actions_pdf, -1)
+            # rand_idx = th.clamp(rand_idx, 1e-6, 1-1e-6)
+            # picked_actions = th.searchsorted(actions_cdf, rand_idx)
+            # target_qvals = th.gather(target_mac_out.clone(), 3, picked_actions).squeeze(3)
+            target_qvals = (target_mac_out.clone() * actions_pdf).sum(-1)
             
             # target_logp = th.log(actions_pdf)
             # target_logp = th.gather(target_logp, 3, picked_actions).squeeze(3)
