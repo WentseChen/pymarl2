@@ -63,6 +63,12 @@ class NQLearner:
         mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1]).to(self.device)
         avail_actions = batch["avail_actions"].to(self.device)
         
+        dead_onehot = th.zeros_like(avail_actions[0,0,0])
+        dead_onehot[0] = 1.
+        dead_onehot = dead_onehot.int()
+        dead_allies = avail_actions.clone() == dead_onehot
+        dead_allies = dead_allies.all(-1).float()
+        
         # Calculate estimated Q-Values
         mac_out = []
         self.mac.init_hidden(batch.batch_size)
@@ -96,14 +102,15 @@ class NQLearner:
             rand_idx = th.clamp(rand_idx, 1e-6, 1-1e-6)
             picked_actions = th.searchsorted(actions_cdf, rand_idx)
             target_qvals = th.gather(target_mac_out.clone(), 3, picked_actions).squeeze(3)
+            target_qvals = target_qvals * (1 - dead_allies)
             
-            # target_logp = th.log(actions_pdf)
-            # target_logp = th.gather(target_logp, 3, picked_actions).squeeze(3)
-            # target_entropy = -target_logp.sum(-1, keepdim=True) 
+            target_logp = th.log(actions_pdf)
+            target_logp = th.gather(target_logp, 3, picked_actions).squeeze(3)
+            target_entropy = -target_logp.sum(-1, keepdim=True) 
             
-            logp_inf2zero = th.where(th.log(actions_pdf)==-th.inf, 0, th.log(actions_pdf))
-            target_entropy = -actions_pdf * logp_inf2zero
-            target_entropy = target_entropy.sum(-1).sum(-1, keepdim=True)
+            # logp_inf2zero = th.where(th.log(actions_pdf)==-th.inf, 0, th.log(actions_pdf))
+            # target_entropy = -actions_pdf * logp_inf2zero
+            # target_entropy = target_entropy.sum(-1).sum(-1, keepdim=True)
             
             # Calculate n-step Q-Learning targets
             target_qvals = self.target_mixer(target_qvals, batch["state"], batch["actions"])
@@ -121,6 +128,7 @@ class NQLearner:
         # Mixer
         naive_sum = chosen_action_qvals.clone().detach().sum(-1, keepdim=True)
         chosen_aq_clone = chosen_action_qvals.clone().detach()
+        chosen_action_qvals = chosen_action_qvals * (1 - dead_allies[:,:-1])
         chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1], batch["actions"][:, :-1])
 
         td_error = (chosen_action_qvals - targets.detach())
@@ -137,7 +145,11 @@ class NQLearner:
         masked_beta_error = beta_error * mask
         L_beta = masked_beta_error.sum() / mask.sum() 
 
-        loss = L_td + L_beta
+        # loss = L_td + L_beta
+        target_mean = (targets * mask).sum().item()/(mask.sum().item() * self.args.n_agents)
+        thresh = 1. + target_mean
+        masked_error = th.clamp(masked_td_error+masked_beta_error, 0, thresh)
+        loss = L_total = masked_error.sum() / mask.sum()
 
         # Optimise
         self.optimiser.zero_grad()
@@ -152,6 +164,7 @@ class NQLearner:
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
             self.logger.log_stat("loss_td", L_td.item(), t_env)
             self.logger.log_stat("loss_beta", L_beta.item(), t_env)
+            self.logger.log_stat("loss_total", L_total.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
@@ -160,7 +173,7 @@ class NQLearner:
             self.logger.log_stat("entropy", target_entropy.mean().item(), t_env)
             self.logger.log_stat("entropy_coef", self.entropy_coef, t_env)
             self.logger.log_stat("naive_sum", naive_sum.mean().item(), t_env)
-            self.logger.log_stat("beta_error", beta_error.mean().item(), t_env)
+            # self.logger.log_stat("beta_error", beta_error.mean().item(), t_env)
             self.log_stats_t = t_env
             
             # print estimated matrix
