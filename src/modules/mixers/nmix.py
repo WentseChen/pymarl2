@@ -85,7 +85,7 @@ class Mixer(nn.Module):
         qval_shape = qvals.shape
         qvals_clone = qvals.clone().reshape(-1, self.n_agents*qval_shape[-1])
         states = states.reshape(-1, self.state_dim)
-        features = th.cat([qvals_clone, states], dim=-1)
+        features = th.cat([qvals_clone, states], dim=-1).detach()
         
         qvals = qvals.reshape(-1, 1, self.n_agents, qval_shape[-1])
         w1 = self.hyper_w3(features).view(-1, self.embed_dim, self.n_agents, 1)
@@ -96,11 +96,6 @@ class Mixer(nn.Module):
         if self.abs:
             w1 = w1.abs()
             w2 = w2.abs()
-            
-        # if death_mask is not None:
-        #     death_mask = death_mask.reshape(-1, self.n_agents)
-        #     w = w * (1 - death_mask)
-        #     b = b * (1 - death_mask)
         
         y = F.elu(qvals * w1 + b1)
         y = (y * w2).sum(dim=-3) + b2
@@ -127,16 +122,9 @@ class Mixer(nn.Module):
             w1 = w1.abs()
             w2 = w2.abs()
         
-        # death_mask = death_mask.reshape(b * t, self.n_agents, 1)
-        # w1 = w1 * (1 - death_mask)
-        # b1 = b1 * (1 - death_mask)
-        
         # Forward
         hidden = F.elu(th.matmul(qvals, w1) + b1) # b * t, 1, emb
         y = th.matmul(hidden, w2) + b2 # b * t, 1, 1
-        
-        # sum_qvals = qvals.detach().sum(dim=-1, keepdim=True)
-        # y = y / th.abs(y) * sum_qvals
         
         return y.view(b, t, -1)
     

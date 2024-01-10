@@ -114,7 +114,7 @@ class NQLearner:
             # target_entropy = target_entropy.sum(-1).sum(-1, keepdim=True)
             
             # Calculate n-step Q-Learning targets
-            target_qvals = self.target_mixer(target_qvals, batch["state"], dead_allies)
+            target_qvals = self.target_mixer(target_qvals, batch["state"], target_mac_out)
 
             if getattr(self.args, 'q_lambda', False):
                 qvals = th.gather(target_mac_out, 3, batch["actions"]).squeeze(3)
@@ -132,9 +132,9 @@ class NQLearner:
         chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1], dead_allies[:,:-1])
 
         td_error = (chosen_action_qvals - targets.detach())
-        td_error = 0.5 * td_error.pow(2)
-        mask = mask.expand_as(td_error)
-        masked_td_error = td_error * mask
+        td_error_sq = 0.5 * td_error.pow(2)
+        mask = mask.expand_as(td_error_sq)
+        masked_td_error = td_error_sq * mask
         L_td = masked_td_error.sum() / mask.sum()
         
         # beta loss
@@ -143,8 +143,13 @@ class NQLearner:
         beta_error = 0.5 * approx_error.pow(2)
         masked_beta_error = beta_error * mask
         L_beta = masked_beta_error.sum() / mask.sum() 
+        
+        gopt_mask = (((approx_error>0.).float() + (td_error<0.).float()) != 1).float()
+        weight_td_error = masked_td_error * gopt_mask * 0.5 + masked_td_error * (1-gopt_mask)
+        mask_sum = mask * gopt_mask * 0.5 + mask * (1-gopt_mask)
+        L_wtd = weight_td_error.sum() / mask_sum.sum()
 
-        loss = L_td + L_beta
+        loss = L_wtd + L_beta 
 
         # Optimise
         self.optimiser.zero_grad()
@@ -158,6 +163,7 @@ class NQLearner:
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
             self.logger.log_stat("loss_td", L_td.item(), t_env)
+            self.logger.log_stat("loss_wtd", L_wtd.item(), t_env)
             self.logger.log_stat("loss_beta", L_beta.item(), t_env)
             # self.logger.log_stat("loss_total", L_total.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm, t_env)
