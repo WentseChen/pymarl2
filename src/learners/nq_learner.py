@@ -102,7 +102,6 @@ class NQLearner:
             rand_idx = th.clamp(rand_idx, 1e-6, 1-1e-6)
             picked_actions = th.searchsorted(actions_cdf, rand_idx)
             target_qvals = th.gather(target_mac_out.clone(), 3, picked_actions).squeeze(3)
-            target_qvals = target_qvals * (1 - dead_allies)
             
             target_logp = th.log(actions_pdf)
             target_logp = th.gather(target_logp, 3, picked_actions).squeeze(3)
@@ -113,7 +112,7 @@ class NQLearner:
             # target_entropy = target_entropy.sum(-1).sum(-1, keepdim=True)
             
             # Calculate n-step Q-Learning targets
-            target_qvals = self.target_mixer(target_qvals, batch["state"], batch["actions"])
+            target_qvals = self.target_mixer(target_qvals, batch["state"], dead_allies)
 
             if getattr(self.args, 'q_lambda', False):
                 qvals = th.gather(target_mac_out, 3, batch["actions"]).squeeze(3)
@@ -128,8 +127,7 @@ class NQLearner:
         # Mixer
         naive_sum = chosen_action_qvals.clone().detach().sum(-1, keepdim=True)
         chosen_aq_clone = chosen_action_qvals.clone().detach()
-        chosen_action_qvals = chosen_action_qvals * (1 - dead_allies[:,:-1])
-        chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1], batch["actions"][:, :-1])
+        chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1], dead_allies[:,:-1])
 
         td_error = (chosen_action_qvals - targets.detach())
         td_error = 0.5 * td_error.pow(2)
@@ -138,18 +136,13 @@ class NQLearner:
         L_td = masked_td_error.sum() / mask.sum()
         
         # beta loss
-        affine_aq = self.mixer.mbpb(chosen_aq_clone, batch["state"][:, :-1], t_env)
+        affine_aq = self.mixer.mbpb(chosen_aq_clone, batch["state"][:, :-1], t_env, dead_allies[:,:-1])
         approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
         beta_error = 0.5 * approx_error.pow(2)
-        
         masked_beta_error = beta_error * mask
         L_beta = masked_beta_error.sum() / mask.sum() 
 
-        # loss = L_td + L_beta
-        target_mean = (targets * mask).sum().item()/(mask.sum().item() * self.args.n_agents)
-        thresh = 1. + target_mean
-        masked_error = th.clamp(masked_td_error+masked_beta_error, 0, thresh)
-        loss = L_total = masked_error.sum() / mask.sum()
+        loss = L_td + L_beta
 
         # Optimise
         self.optimiser.zero_grad()
@@ -164,7 +157,7 @@ class NQLearner:
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
             self.logger.log_stat("loss_td", L_td.item(), t_env)
             self.logger.log_stat("loss_beta", L_beta.item(), t_env)
-            self.logger.log_stat("loss_total", L_total.item(), t_env)
+            # self.logger.log_stat("loss_total", L_total.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)

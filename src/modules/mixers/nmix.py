@@ -40,7 +40,7 @@ class Mixer(nn.Module):
         )
     
     # multiply beta and add bias
-    def mbpb(self, qvals, states, t_env):
+    def mbpb(self, qvals, states, t_env, death_mask=None):
         
         qval_shape = qvals.shape
             
@@ -57,12 +57,17 @@ class Mixer(nn.Module):
         
         if self.abs:
             w = w.abs()
+            
+        if death_mask is not None:
+            death_mask = death_mask.reshape(-1, self.n_agents)
+            w = w * (1 - death_mask)
+            b = b * (1 - death_mask)
         
         y = qvals * w + b 
         
         return y.reshape(qval_shape)
 
-    def forward(self, qvals, states, actions):
+    def forward(self, qvals, states, death_mask):
         
         # reshape
         b, t, _ = qvals.size()
@@ -81,6 +86,10 @@ class Mixer(nn.Module):
         if self.abs:
             w1 = w1.abs()
             w2 = w2.abs()
+        
+        death_mask = death_mask.reshape(b * t, self.n_agents, 1)
+        w1 = w1 * (1 - death_mask)
+        b1 = b1 * (1 - death_mask)
             
         # Forward
         hidden = F.elu(th.matmul(qvals, w1) + b1) # b * t, 1, emb
