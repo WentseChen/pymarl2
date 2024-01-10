@@ -11,59 +11,99 @@ class Mixer(nn.Module):
         self.abs = abs
         self.n_agents = args.n_agents
         self.embed_dim = args.mixing_embed_dim
-        self.input_state_dim = self.state_dim = int(np.prod(args.state_shape))
+        self.input_state_dim = int(np.prod(args.state_shape)) + self.n_agents * 11
+        self.state_dim = int(np.prod(args.state_shape))
         
         # hyper w1 b1
-        self.hyper_w1 = nn.Sequential(nn.Linear(self.input_state_dim, args.hypernet_embed),
+        self.hyper_w1 = nn.Sequential(nn.Linear(self.state_dim, args.hypernet_embed),
                                         nn.ReLU(inplace=True),
                                         nn.Linear(args.hypernet_embed, self.n_agents * self.embed_dim))
-        self.hyper_b1 = nn.Sequential(nn.Linear(self.input_state_dim, self.embed_dim))
+        self.hyper_b1 = nn.Sequential(nn.Linear(self.state_dim, self.embed_dim))
         
         # hyper w2 b2
-        self.hyper_w2 = nn.Sequential(nn.Linear(self.input_state_dim, args.hypernet_embed),
+        self.hyper_w2 = nn.Sequential(nn.Linear(self.state_dim, args.hypernet_embed),
                                         nn.ReLU(inplace=True),
                                         nn.Linear(args.hypernet_embed, self.embed_dim))
-        self.hyper_b2 = nn.Sequential(nn.Linear(self.input_state_dim, args.hypernet_embed),
+        self.hyper_b2 = nn.Sequential(nn.Linear(self.state_dim, args.hypernet_embed),
                             nn.ReLU(inplace=True),
                             nn.Linear(args.hypernet_embed, 1))
         
-        # hyper w3 b3
-        self.hyper_w = nn.Sequential(
+        self.hyper_w3 = nn.Sequential(
+            nn.Linear(self.input_state_dim, args.hypernet_embed),
+            nn.ReLU(inplace=True),
+            nn.Linear(args.hypernet_embed, self.n_agents * self.embed_dim)
+        )
+        self.hyper_b3 = nn.Sequential(nn.Linear(self.input_state_dim, self.n_agents*self.embed_dim))
+        self.hyper_w4 = nn.Sequential(
+            nn.Linear(self.input_state_dim, args.hypernet_embed),
+            nn.ReLU(inplace=True),
+            nn.Linear(args.hypernet_embed, self.n_agents*self.embed_dim)
+        )
+        self.hyper_b4 = nn.Sequential(
             nn.Linear(self.input_state_dim, args.hypernet_embed),
             nn.ReLU(inplace=True),
             nn.Linear(args.hypernet_embed, self.n_agents)
         )
-        self.hyper_b = nn.Sequential(
-            nn.Linear(self.input_state_dim, args.hypernet_embed),
+        
+        self.hyper_w5 = nn.Sequential(
+            nn.Linear(self.state_dim, args.hypernet_embed),
             nn.ReLU(inplace=True),
             nn.Linear(args.hypernet_embed, self.n_agents)
         )
-    
-    # multiply beta and add bias
-    def mbpb(self, qvals, states, t_env, death_mask=None):
+        self.hyper_b5 = nn.Sequential(
+            nn.Linear(self.state_dim, args.hypernet_embed),
+            nn.ReLU(inplace=True),
+            nn.Linear(args.hypernet_embed, self.n_agents)
+        )
+        
+    def func_lin(self, qvals, states, t_env, death_mask=None):
         
         qval_shape = qvals.shape
-            
-        if qval_shape[-2] == self.n_agents:
-            qvals = qvals.reshape(-1, self.n_agents, qvals.shape[-1])
-            states = states.reshape(-1, states.shape[-1])
-            w = self.hyper_w(states).view(-1, self.n_agents, 1)
-            b = self.hyper_b(states).view(-1, self.n_agents, 1)
-        if qval_shape[-1] == self.n_agents:
-            qvals = qvals.reshape(-1, self.n_agents)
-            states = states.reshape(-1, states.shape[-1])
-            w = self.hyper_w(states).view(-1, self.n_agents)
-            b = self.hyper_b(states).view(-1, self.n_agents)
+        states = states.reshape(-1, self.state_dim)
         
+        if qval_shape[-2] == self.n_agents:
+            self.dim_idx = -3
+            qvals = qvals.reshape(-1, self.n_agents, qvals.shape[-1])
+            w = self.hyper_w5(states).view(-1, self.n_agents, 1)
+            b = self.hyper_b5(states).view(-1, self.n_agents, 1)
+        if qval_shape[-1] == self.n_agents:
+            self.dim_idx = -2
+            qvals = qvals.reshape(-1, self.n_agents)
+            w = self.hyper_w5(states).view(-1, self.n_agents)
+            b = self.hyper_b5(states).view(-1, self.n_agents)
+            
         if self.abs:
             w = w.abs()
-            
-        if death_mask is not None:
-            death_mask = death_mask.reshape(-1, self.n_agents)
-            w = w * (1 - death_mask)
-            b = b * (1 - death_mask)
         
-        y = qvals * w + b 
+        y = qvals * w + b
+        
+        return y.reshape(qval_shape)
+    
+    # multiply beta and add bias
+    def func_m(self, qvals, states, t_env, death_mask=None):
+        
+        qval_shape = qvals.shape
+        qvals_clone = qvals.clone().reshape(-1, self.n_agents*qval_shape[-1])
+        states = states.reshape(-1, self.state_dim)
+        features = th.cat([qvals_clone, states], dim=-1)
+        
+        qvals = qvals.reshape(-1, 1, self.n_agents, qval_shape[-1])
+        w1 = self.hyper_w3(features).view(-1, self.embed_dim, self.n_agents, 1)
+        b1 = self.hyper_b3(features).view(-1, self.embed_dim, self.n_agents, 1)
+        w2 = self.hyper_w4(features).view(-1, self.embed_dim, self.n_agents, 1)
+        b2 = self.hyper_b4(features).view(-1, self.n_agents, 1)
+        
+        if self.abs:
+            w1 = w1.abs()
+            w2 = w2.abs()
+            
+        # if death_mask is not None:
+        #     death_mask = death_mask.reshape(-1, self.n_agents)
+        #     w = w * (1 - death_mask)
+        #     b = b * (1 - death_mask)
+        
+        y = F.elu(qvals * w1 + b1)
+        y = (y * w2).sum(dim=-3) + b2
         
         return y.reshape(qval_shape)
 
@@ -87,13 +127,16 @@ class Mixer(nn.Module):
             w1 = w1.abs()
             w2 = w2.abs()
         
-        death_mask = death_mask.reshape(b * t, self.n_agents, 1)
-        w1 = w1 * (1 - death_mask)
-        b1 = b1 * (1 - death_mask)
-            
+        # death_mask = death_mask.reshape(b * t, self.n_agents, 1)
+        # w1 = w1 * (1 - death_mask)
+        # b1 = b1 * (1 - death_mask)
+        
         # Forward
         hidden = F.elu(th.matmul(qvals, w1) + b1) # b * t, 1, emb
         y = th.matmul(hidden, w2) + b2 # b * t, 1, 1
+        
+        # sum_qvals = qvals.detach().sum(dim=-1, keepdim=True)
+        # y = y / th.abs(y) * sum_qvals
         
         return y.view(b, t, -1)
     

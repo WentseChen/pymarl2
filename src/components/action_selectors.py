@@ -173,8 +173,9 @@ class EpsilonGreedyActionSelector():
             picked_actions = agent_inputs.argmax(dim=2)
             picked_actions = picked_actions.unsqueeze(-1)
         else:
-            masked_q_values = mixer.mbpb(agent_inputs, states, t_env).detach()
-            masked_q_values = masked_q_values / self.entropy_coef
+            agent_inputs = mixer.func_m(agent_inputs, states, t_env).detach()
+            agent_inputs = mixer.func_lin(agent_inputs, states, t_env).detach()
+            masked_q_values = agent_inputs / self.entropy_coef
             masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
             actions_pdf = th.softmax(masked_q_values, dim=-1)
             rand_idx = th.rand(actions_pdf[:,:,:1].shape).to(actions_pdf.device)
