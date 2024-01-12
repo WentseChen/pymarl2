@@ -95,7 +95,7 @@ class NQLearner:
 
             # Max over target Q-Values/ Double q learning
             mac_out_detach = mac_out.clone().detach()
-            mac_out_detach = self.mixer.func_lin(mac_out_detach, batch["state"], t_env)
+            # mac_out_detach = self.mixer.func_lin(mac_out_detach, batch["state"], t_env)
             mac_out_detach = mac_out_detach / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
             actions_pdf = th.softmax(mac_out_detach, dim=-1)
@@ -138,18 +138,26 @@ class NQLearner:
         L_td = masked_td_error.sum() / mask.sum()
         
         # beta loss
-        affine_aq = self.mixer.func_lin(chosen_aq_clone, batch["state"][:, :-1], t_env, dead_allies[:,:-1])
-        approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
+        # affine_aq = self.mixer.func_lin(chosen_aq_clone, batch["state"][:, :-1], t_env, dead_allies[:,:-1])
+        approx_error = chosen_action_qvals.detach() - chosen_action_qvals.sum(-1, keepdim=True)
+        # approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
         beta_error = 0.5 * approx_error.pow(2)
         masked_beta_error = beta_error * mask
         L_beta = masked_beta_error.sum() / mask.sum() 
         
+        # err_pi = th.exp(chosen_action_qvals.detach()) - th.exp(targets)
+        # err_total = err_pi * approx_error.detach()
+        # err_mask = th.clamp(th.exp(err_total), 0., 1.)
+        # weight_td_error = masked_td_error * err_mask 
+        # mask_sum = mask * err_mask
+        # L_wtd = weight_td_error.sum() / mask_sum.sum()
+        
         gopt_mask = (((approx_error>0.).float() + (td_error<0.).float()) != 1).float()
         weight_td_error = masked_td_error * gopt_mask * 0.5 + masked_td_error * (1-gopt_mask)
-        mask_sum = mask * gopt_mask * 0.5 + mask * (1-gopt_mask)
+        mask_sum = mask * gopt_mask * 0. + mask * (1-gopt_mask)
         L_wtd = weight_td_error.sum() / mask_sum.sum()
 
-        loss = L_wtd + L_beta 
+        loss = L_wtd + L_beta * 0.
 
         # Optimise
         self.optimiser.zero_grad()
@@ -165,6 +173,7 @@ class NQLearner:
             self.logger.log_stat("loss_td", L_td.item(), t_env)
             self.logger.log_stat("loss_wtd", L_wtd.item(), t_env)
             self.logger.log_stat("loss_beta", L_beta.item(), t_env)
+            self.logger.log_stat("err_mask", (mask_sum.sum()/mask.sum()).item(), t_env)
             # self.logger.log_stat("loss_total", L_total.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
