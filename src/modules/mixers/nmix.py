@@ -109,21 +109,21 @@ class Mixer(nn.Module):
         qvals = qvals.reshape(b * t, 1, self.n_agents)
         states = states.reshape(-1, self.state_dim)
 
-        # # First layer
-        # w1 = self.hyper_w1(states).view(-1, self.n_agents, self.embed_dim) # b * t, n_agents, emb
-        # b1 = self.hyper_b1(states).view(-1, 1, self.embed_dim)
+        # First layer
+        w1 = self.hyper_w1(states).view(-1, self.n_agents, self.embed_dim) # b * t, n_agents, emb
+        b1 = self.hyper_b1(states).view(-1, 1, self.embed_dim)
         
-        # # Second layer
-        # w2 = self.hyper_w2(states).view(-1, self.embed_dim, 1) # b * t, emb, 1
-        # b2= self.hyper_b2(states).view(-1, 1, 1)
+        # Second layer
+        w2 = self.hyper_w2(states).view(-1, self.embed_dim, 1) # b * t, emb, 1
+        b2= self.hyper_b2(states).view(-1, 1, 1)
         
-        # if self.abs:
-        #     w1 = w1.abs()
-        #     w2 = w2.abs()
+        if self.abs:
+            w1 = w1.abs()
+            w2 = w2.abs()
         
-        # # Forward
-        # hidden = F.elu(th.matmul(qvals, w1) + b1) # b * t, 1, emb
-        # y = th.matmul(hidden, w2) + b2 # b * t, 1, 1
+        # Forward
+        hidden = F.elu(th.matmul(qvals, w1) + b1) # b * t, 1, emb
+        y = th.matmul(hidden, w2) + b2 # b * t, 1, 1
         
         y = qvals.sum(-1)
         
