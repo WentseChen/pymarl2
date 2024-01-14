@@ -158,7 +158,7 @@ class EpsilonGreedyActionSelector():
                                               decay="linear")
         self.epsilon = self.schedule.eval(0)
         
-        self.entropy_coef = 0.03
+        self.entropy_coef = 0.0015
         
         self.n_agents = args.n_agents
         
