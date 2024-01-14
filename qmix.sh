@@ -1,3 +1,3 @@
 git add . 
 git commit -m "qmix"
-CUDA_VISIBLE_DEVICES=0 python src/main.py --config=qmix --env-config=sc2_gen_zerg
+CUDA_VISIBLE_DEVICES=0 python src/main.py --config=qmix --env-config=sc2_gen_terran
