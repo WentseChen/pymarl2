@@ -36,7 +36,7 @@ class NQLearner:
         print('Mixer Size: ')
         print(get_parameters_num(self.mixer.parameters()))
         
-        self.entropy_coef = 0.01
+        self.entropy_coef = 0.005
 
         if self.args.optimizer == 'adam':
             self.optimiser = Adam(params=self.params,  lr=args.lr)
