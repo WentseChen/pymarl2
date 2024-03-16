@@ -73,8 +73,8 @@ class Mixer(nn.Module):
             w = self.hyper_w5(states).view(-1, self.n_agents)
             b = self.hyper_b5(states).view(-1, self.n_agents)
             
-        if self.abs:
-            w = w.abs()
+        # if self.abs:
+        #     w = w.abs()
         
         y = qvals * w + b 
         
