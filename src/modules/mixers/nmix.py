@@ -73,8 +73,8 @@ class Mixer(nn.Module):
             w = self.hyper_w5(states).view(-1, self.n_agents)
             b = self.hyper_b5(states).view(-1, self.n_agents)
             
-        # if self.abs:
-        #     w = w.abs()
+        if self.abs:
+            w = w.abs()
         
         y = qvals * w + b 
         
@@ -117,9 +117,9 @@ class Mixer(nn.Module):
         w2 = self.hyper_w2(states).view(-1, self.embed_dim, 1) # b * t, emb, 1
         b2= self.hyper_b2(states).view(-1, 1, 1)
         
-        if self.abs:
-            w1 = w1.abs()
-            w2 = w2.abs()
+        # if self.abs:
+        #     w1 = w1.abs()
+        #     w2 = w2.abs()
         
         # Forward
         hidden = F.elu(th.matmul(qvals, w1) + b1) # b * t, 1, emb
