@@ -92,7 +92,7 @@ class Mixer(nn.Module):
             w2 = w2.abs()
         
         y = F.elu(qvals * w1 + b1) 
-        y = (y * w2).sum(dim=-3, keepdim=True) + b2
+        y = (y * w2).sum(dim=1, keepdim=True) + b2
         
         return y.reshape(qval_shape)
     
@@ -112,7 +112,7 @@ class Mixer(nn.Module):
             w2 = w2.abs()
         
         y = F.elu(qvals * w1 + b1)
-        y = (y * w2).sum(dim=-3, keepdim=True) + b2
+        y = (y * w2).sum(dim=1, keepdim=True) + b2
         # y = y + qvals
         
         return y.reshape(qval_shape)
