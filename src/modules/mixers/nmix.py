@@ -74,18 +74,18 @@ class Mixer(nn.Module):
         
         if qval_shape[-2] == self.n_agents:
             self.dim_idx = -3
-            qvals = qvals.reshape(-1, self.n_agents, qvals.shape[-1])
+            qvals = qvals.reshape(-1, 1, self.n_agents, qvals.shape[-1])
             w1 = self.hyper_w5(states).view(-1, self.embed_dim//2, self.n_agents, 1)
             b1 = self.hyper_b5(states).view(-1, self.embed_dim//2, self.n_agents, 1)
             w2 = self.hyper_w6(states).view(-1, self.embed_dim//2, self.n_agents, 1)
-            b2 = self.hyper_b6(states).view(-1, self.embed_dim//2, self.n_agents, 1)
+            b2 = self.hyper_b6(states).view(-1, 1, self.n_agents, 1)
         if qval_shape[-1] == self.n_agents:
             self.dim_idx = -2
-            qvals = qvals.reshape(-1, self.n_agents)
+            qvals = qvals.reshape(-1, 1, self.n_agents)
             w1 = self.hyper_w5(states).view(-1, self.embed_dim//2, self.n_agents)
             b1 = self.hyper_b5(states).view(-1, self.embed_dim//2, self.n_agents)
             w2 = self.hyper_w6(states).view(-1, self.embed_dim//2, self.n_agents)
-            b2 = self.hyper_b6(states).view(-1, self.embed_dim//2, self.n_agents)
+            b2 = self.hyper_b6(states).view(-1, 1, self.n_agents)
             
         if self.abs:
             w1 = w1.abs()
