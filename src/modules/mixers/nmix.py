@@ -34,6 +34,18 @@ class Mixer(nn.Module):
         self.hyper_b3 = nn.Sequential(nn.Linear(self.input_state_dim, self.embed_dim),
                             nn.ReLU(inplace=True),
                             nn.Linear(self.embed_dim, 1))
+        
+        # linear transformation
+        self.hyper_w5 = nn.Sequential(
+            nn.Linear(self.state_dim, args.hypernet_embed),
+            nn.ReLU(inplace=True),
+            nn.Linear(args.hypernet_embed, self.n_agents)
+        )
+        self.hyper_b5 = nn.Sequential(
+            nn.Linear(self.state_dim, args.hypernet_embed),
+            nn.ReLU(inplace=True),
+            nn.Linear(args.hypernet_embed, self.n_agents)
+        )
     
     def beta(self, states):
         
@@ -47,6 +59,30 @@ class Mixer(nn.Module):
         w = w.view(state_shape[:-1] + (self.n_agents, ))
         
         return w
+    
+        
+    # def mbpb(self, qvals, states):
+        
+    #     qval_shape = qvals.shape
+    #     states = states.reshape(-1, self.state_dim)
+        
+    #     if qval_shape[-2] == self.n_agents:
+    #         self.dim_idx = -3
+    #         qvals = qvals.reshape(-1, self.n_agents, qvals.shape[-1])
+    #         w = self.hyper_w5(states).view(-1, self.n_agents, 1)
+    #         b = self.hyper_b5(states).view(-1, self.n_agents, 1)
+    #     if qval_shape[-1] == self.n_agents:
+    #         self.dim_idx = -2
+    #         qvals = qvals.reshape(-1, self.n_agents)
+    #         w = self.hyper_w5(states).view(-1, self.n_agents)
+    #         b = self.hyper_b5(states).view(-1, self.n_agents)
+            
+    #     if self.abs:
+    #         w = w.abs()
+        
+    #     y = qvals * w + b 
+        
+    #     return y.reshape(qval_shape)
     
     # multiply beta and add bias
     def mbpb(self, qvals, states):
