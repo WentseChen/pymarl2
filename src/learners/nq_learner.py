@@ -127,11 +127,11 @@ class NQLearner:
         L_td = masked_td_error.sum() / mask.sum()
         
         # beta loss
-        # beta = self.mixer.beta(batch["state"][:, :-1])
-        # beta_sq = beta.pow(2).sum(-1, keepdim=True)
+        beta = self.mixer.beta(batch["state"][:, :-1])
+        beta_sq = beta.pow(2).sum(-1, keepdim=True)
         affine_aq = self.mixer.mbpb(chosen_aq_clone, batch["state"][:, :-1])
         approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
-        # beta_coef = (td_err_clone * beta_sq).detach().mean()
+        beta_coef = (td_err_clone * beta_sq).detach().mean()
         beta_error = 0.5 * approx_error.pow(2) #* td_err_clone * beta_sq / (beta_sq + 1e-8)
         
         masked_beta_error = beta_error * mask

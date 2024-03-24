@@ -47,18 +47,18 @@ class Mixer(nn.Module):
             nn.Linear(args.hypernet_embed, self.n_agents)
         )
     
-    # def beta(self, states):
+    def beta(self, states):
         
-    #     state_shape = states.shape
+        state_shape = states.shape
         
-    #     states = states.reshape(-1, states.shape[-1])
-    #     w = self.hyper_w3(states).view(-1, self.n_agents)
-    #     if self.abs:
-    #         w = w.abs()
+        states = states.reshape(-1, states.shape[-1])
+        w = self.hyper_w3(states).view(-1, self.n_agents)
+        if self.abs:
+            w = w.abs()
             
-    #     w = w.view(state_shape[:-1] + (self.n_agents, ))
+        w = w.view(state_shape[:-1] + (self.n_agents, ))
         
-    #     return w
+        return w
     
         
     # def mbpb(self, qvals, states):
@@ -87,25 +87,27 @@ class Mixer(nn.Module):
     # multiply beta and add bias
     def mbpb(self, qvals, states):
         
-        qval_shape = qvals.shape
+        return qvals
         
-        if qval_shape[-2] == self.n_agents:
-            qvals = qvals.reshape(-1, self.n_agents, qvals.shape[-1])
-            states = states.reshape(-1, states.shape[-1])
-            w = self.hyper_w3(states).view(-1, self.n_agents, 1)
-            b = self.hyper_b3(states).view(-1, 1, 1) 
-        if qval_shape[-1] == self.n_agents:
-            qvals = qvals.reshape(-1, self.n_agents)
-            states = states.reshape(-1, states.shape[-1])
-            w = self.hyper_w3(states).view(-1, self.n_agents)
-            b = self.hyper_b3(states).view(-1, 1)
+        # qval_shape = qvals.shape
         
-        if self.abs:
-            w = w.abs()
+        # if qval_shape[-2] == self.n_agents:
+        #     qvals = qvals.reshape(-1, self.n_agents, qvals.shape[-1])
+        #     states = states.reshape(-1, states.shape[-1])
+        #     w = self.hyper_w3(states).view(-1, self.n_agents, 1)
+        #     b = self.hyper_b3(states).view(-1, 1, 1) 
+        # if qval_shape[-1] == self.n_agents:
+        #     qvals = qvals.reshape(-1, self.n_agents)
+        #     states = states.reshape(-1, states.shape[-1])
+        #     w = self.hyper_w3(states).view(-1, self.n_agents)
+        #     b = self.hyper_b3(states).view(-1, 1)
         
-        y = qvals * w + b / self.n_agents
+        # if self.abs:
+        #     w = w.abs()
         
-        return y.reshape(qval_shape)
+        # y = qvals * w + b / self.n_agents
+        
+        # return y.reshape(qval_shape)
 
     def forward(self, qvals, states):
         
