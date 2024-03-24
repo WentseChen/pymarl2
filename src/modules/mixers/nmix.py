@@ -83,6 +83,26 @@ class Mixer(nn.Module):
         
         return y.reshape(qval_shape)
     
+    def func_g(self, qvals, states):
+        
+        qval_shape = qvals.shape
+        states = states.reshape(-1, self.state_dim)
+        
+        qvals = qvals.reshape(-1, 1, self.n_agents, qval_shape[-1])
+        w1 = self.hyper_w3(states).view(-1, self.embed_dim//2, self.n_agents, 1)
+        b1 = self.hyper_b3(states).view(-1, self.embed_dim//2, self.n_agents, 1)
+        w2 = self.hyper_w4(states).view(-1, self.embed_dim//2, self.n_agents, 1)
+        b2 = self.hyper_b4(states).view(-1, 1, self.n_agents, 1)
+        
+        if self.abs:
+            w1 = w1.abs()
+            w2 = w2.abs()
+        
+        y = F.elu(qvals * w1 + b1)
+        y = (y * w2).sum(dim=1, keepdim=True) + b2
+        
+        return y.reshape(qval_shape)
+    
     # # multiply beta and add bias
     # def mbpb(self, qvals, states):
         
