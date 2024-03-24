@@ -47,18 +47,18 @@ class Mixer(nn.Module):
             nn.Linear(args.hypernet_embed, self.n_agents)
         )
     
-    def beta(self, states):
+    # def beta(self, states):
         
-        state_shape = states.shape
+    #     state_shape = states.shape
         
-        states = states.reshape(-1, states.shape[-1])
-        w = self.hyper_w3(states).view(-1, self.n_agents)
-        if self.abs:
-            w = w.abs()
+    #     states = states.reshape(-1, states.shape[-1])
+    #     w = self.hyper_w3(states).view(-1, self.n_agents)
+    #     if self.abs:
+    #         w = w.abs()
             
-        w = w.view(state_shape[:-1] + (self.n_agents, ))
+    #     w = w.view(state_shape[:-1] + (self.n_agents, ))
         
-        return w
+    #     return w
     
         
     # def mbpb(self, qvals, states):
