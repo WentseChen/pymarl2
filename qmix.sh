@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=2 python src/main.py --config=qmix --env-config=sc2_gen_zerg
+CUDA_VISIBLE_DEVICES=0 python src/main.py --config=qmix --env-config=sc2_gen_zerg
