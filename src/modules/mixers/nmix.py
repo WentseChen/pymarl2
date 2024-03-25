@@ -73,8 +73,8 @@ class Mixer(nn.Module):
             w = self.hyper_w5(states).view(-1, self.n_agents)
             b = self.hyper_b5(states).view(-1, self.n_agents)
             
-        if self.abs:
-            w = w.abs()
+        # if self.abs:
+        #     w = w.abs()
         
         y = qvals * w + b 
         
@@ -91,9 +91,9 @@ class Mixer(nn.Module):
         w2 = self.hyper_w4(states).view(-1, self.embed_dim//2, self.n_agents, 1)
         b2 = self.hyper_b4(states).view(-1, 1, self.n_agents, 1)
         
-        if self.abs:
-            w1 = w1.abs()
-            w2 = w2.abs()
+        # if self.abs:
+        #     w1 = w1.abs()
+        #     w2 = w2.abs()
         
         y = F.elu(qvals * w1 + b1)
         y = (y * w2).sum(dim=1, keepdim=True) + b2
