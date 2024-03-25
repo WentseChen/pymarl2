@@ -89,7 +89,7 @@ class NQLearner:
 
             # Max over target Q-Values/ Double q learning
             mac_out_detach = mac_out.clone().detach()
-            mac_out_detach = self.target_mixer.func_m(mac_out_detach, batch["state"])
+            mac_out_detach = self.target_mixer.func_f(mac_out_detach, batch["state"])
             mac_out_detach = mac_out_detach / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
             actions_pdf = th.softmax(mac_out_detach, dim=-1)
@@ -129,7 +129,7 @@ class NQLearner:
         L_td = masked_td_error.sum() / mask.sum()
         
         # beta loss
-        affine_aq = self.mixer.func_m(chosen_aq_clone, batch["state"][:, :-1])
+        affine_aq = self.mixer.func_f(chosen_aq_clone, batch["state"][:, :-1])
         approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
         beta_error = 0.5 * approx_error.pow(2) 
         
