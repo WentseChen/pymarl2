@@ -89,7 +89,7 @@ class NQLearner:
 
             # Max over target Q-Values/ Double q learning
             mac_out_detach = mac_out.clone().detach()
-            mac_out_detach = self.target_mixer.func_f(mac_out_detach, batch["state"])
+            mac_out_detach = self.mixer.func_f(mac_out_detach, batch["state"])
             mac_out_detach = mac_out_detach / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
             actions_pdf = th.softmax(mac_out_detach, dim=-1)
