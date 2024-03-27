@@ -1,23 +1,40 @@
+# Soft-QMIX
 
-# Running Hyperparameter Tuning
+This repo is heavily based on the [pymarl](https://github.com/benellis3/pymarl2)
 
-1. Build the Docker container by running `docker build -t pymarl2:ben_smac -f docker/Dockerfile --build-arg UID=$UID .` from the `pymarl2` directory
-2. Set up StarCraft II by running `./install_sc2.sh`. Make sure to install the `32x32_flat.SC2Map` by copying it to the `$SC2PATH/Maps` directory from 
-the [smacv2 repo](https://github.com/oxwhirl/smacv2).
-3. Make sure to either set `use_wandb=False` or to change the `project` and `entity` in `src/config/default.yaml`.
-4. Run the `run_exp.sh` script.
+## Installation
 
-# Citation
-This repository has very few changes from previous QMIX work, except that it runs on SMACv2. The original repository is [here](https://github.com/hijkzzz/pymarl2).
+please follow the installation guide in the original repo [pymarl](https://github.com/benellis3/pymarl2)
 
+## Run
+
+To run the code, you can use the following command:
+
+```bash
+bash ./qmix.sh
 ```
-@article{hu2021revisiting,
-      title={Revisiting the Monotonicity Constraint in Cooperative Multi-Agent Reinforcement Learning}, 
-      author={Jian Hu and Siyang Jiang and Seth Austin Harding and Haibin Wu and Shih-wei Liao},
-      year={2021},
-      eprint={2102.03479},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG}
-}
+
+you can change the hyperparameters in the `qmix.sh` file. For instance to run protoss5v5 map, you can use the following command (default is terran5v5):
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python src/main.py --config=qmix --env-config=sc2_gen_protoss
 ```
+
+To run 10v10 map, you should change the `sc2_gen_terran.yaml` file
+
+```yaml
+capability_config:
+    n_units: 10
+    n_enemies: 10
+```
+
+## Code Structure
+
+you can find 
+* the network structure of soft-QMIX in `src/modules/mixers/nmix.py`
+* the training algorithm in `src/learners/nq_learner.py`
+* the action selection logic in `src/components/action_selectors.py`
+* the td-lambda algrithm in `src/utils/rl_utils.py`
+
+
 

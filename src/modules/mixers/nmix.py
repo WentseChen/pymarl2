@@ -57,7 +57,7 @@ class Mixer(nn.Module):
             nn.Linear(args.hypernet_embed, self.n_agents)
         )
         
-    def func_lin(self, qvals, states, t_env, death_mask=None):
+    def func_f(self, qvals, states, t_env, death_mask=None):
         
         qval_shape = qvals.shape
         states = states.reshape(-1, self.state_dim)
@@ -80,7 +80,7 @@ class Mixer(nn.Module):
         
         return y.reshape(qval_shape)
     
-    def func_m(self, qvals, states, t_env, death_mask=None):
+    def func_g(self, qvals, states, t_env, death_mask=None):
         
         qval_shape = qvals.shape
         states = states.reshape(-1, self.state_dim)

@@ -76,7 +76,7 @@ class NQLearner:
             agent_outs = self.mac.forward(batch, t=t)
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
-        mac_out = self.mixer.func_m(mac_out, batch["state"], t_env)
+        mac_out = self.mixer.func_g(mac_out, batch["state"], t_env)
 
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
@@ -91,11 +91,11 @@ class NQLearner:
 
             # We don't need the first timesteps Q-Value estimate for calculating targets
             target_mac_out = th.stack(target_mac_out, dim=1)  # Concat across time
-            target_mac_out = self.target_mixer.func_m(target_mac_out, batch["state"], t_env)
+            target_mac_out = self.target_mixer.func_g(target_mac_out, batch["state"], t_env)
 
             # Max over target Q-Values/ Double q learning
             mac_out_detach = mac_out.clone().detach()
-            mac_out_detach = self.mixer.func_lin(mac_out_detach, batch["state"], t_env)
+            mac_out_detach = self.mixer.func_f(mac_out_detach, batch["state"], t_env)
             mac_out_detach = mac_out_detach / self.entropy_coef
             mac_out_detach[avail_actions == 0] = -9999999
             actions_pdf = th.softmax(mac_out_detach, dim=-1)
@@ -138,7 +138,7 @@ class NQLearner:
         L_td = masked_td_error.sum() / mask.sum()
         
         # beta loss
-        affine_aq = self.mixer.func_lin(chosen_aq_clone, batch["state"][:, :-1], t_env, dead_allies[:,:-1])
+        affine_aq = self.mixer.func_f(chosen_aq_clone, batch["state"][:, :-1], t_env, dead_allies[:,:-1])
         approx_error = chosen_action_qvals.detach() - affine_aq.sum(-1, keepdim=True)
         beta_error = 0.5 * approx_error.pow(2)
         masked_beta_error = beta_error * mask
