@@ -1,0 +1,109 @@
+{
+  "artifacts": [],
+  "command": "my_main",
+  "experiment": {
+    "base_dir": "/xxx/home/xxx/pymarl2/src",
+    "dependencies": [
+      "numpy==1.23.1",
+      "PyYAML==5.4.1",
+      "sacred==0.8.5",
+      "torch==2.1.1",
+      "wandb==0.15.12"
+    ],
+    "mainfile": "main.py",
+    "name": "pymarl",
+    "repositories": [
+      {
+        "commit": "bf321f93b8c8c007337168af7d84fc9a58129e06",
+        "dirty": false,
+        "url": "git@github.com:xxxhen/pymarl2.git"
+      },
+      {
+        "commit": "bf321f93b8c8c007337168af7d84fc9a58129e06",
+        "dirty": false,
+        "url": "git@github.com:xxxhen/pymarl2.git"
+      }
+    ],
+    "sources": [
+      [
+        "main.py",
+        "_sources/main_77ce6ac0e94d7dcd84f3fb8d4620c6d4.py"
+      ],
+      [
+        "utils/logging.py",
+        "_sources/logging_bbd5e57a493f521cc49efce26ee07e51.py"
+      ]
+    ]
+  },
+  "heartbeat": "2024-04-01T15:03:47.016611",
+  "host": {
+    "ENV": {},
+    "cpu": "Intel(R) Xeon(R) Silver 4210 CPU @ 2.20GHz",
+    "gpus": {
+      "driver_version": "550.54.14",
+      "gpus": [
+        {
+          "model": "NVIDIA GeForce RTX 2080 Ti",
+          "persistence_mode": false,
+          "total_memory": 11264
+        },
+        {
+          "model": "NVIDIA GeForce RTX 2080 Ti",
+          "persistence_mode": false,
+          "total_memory": 11264
+        },
+        {
+          "model": "NVIDIA GeForce RTX 2080 Ti",
+          "persistence_mode": false,
+          "total_memory": 11264
+        },
+        {
+          "model": "NVIDIA GeForce RTX 2080 Ti",
+          "persistence_mode": false,
+          "total_memory": 11264
+        }
+      ]
+    },
+    "hostname": "gpu11.int.xxx.org",
+    "os": [
+      "Linux",
+      "Linux-5.14.0-284.11.1.el9_2.x86_64-x86_64-with-glibc2.10"
+    ],
+    "python_version": "3.8.0"
+  },
+  "meta": {
+    "command": "my_main",
+    "config_updates": {},
+    "named_configs": [],
+    "options": {
+      "--beat-interval": null,
+      "--capture": null,
+      "--comment": null,
+      "--debug": false,
+      "--enforce_clean": false,
+      "--file_storage": null,
+      "--force": false,
+      "--help": false,
+      "--id": null,
+      "--loglevel": null,
+      "--mongo_db": null,
+      "--name": null,
+      "--pdb": false,
+      "--print-config": false,
+      "--priority": null,
+      "--queue": false,
+      "--s3": null,
+      "--sql": null,
+      "--tiny_db": null,
+      "--unobserved": false,
+      "COMMAND": null,
+      "UPDATE": [],
+      "help": false,
+      "with": false
+    }
+  },
+  "resources": [],
+  "result": null,
+  "start_time": "2024-03-31T14:18:09.459465",
+  "status": "RUNNING"
+}
