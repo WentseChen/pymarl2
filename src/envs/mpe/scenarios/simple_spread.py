@@ -95,7 +95,7 @@ class Scenario(BaseScenario):
                 np.sqrt(np.sum(np.square(a.state.p_pos - landmark.state.p_pos)))
                 for a in world.agents
             ]
-            rew -= np.clip(min(dists), 0., 0.1)
+            rew -= min(dists)
 
         if agent.collide:
             for a in world.agents:
