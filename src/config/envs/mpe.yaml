@@ -1,0 +1,16 @@
+
+env: mpe
+
+test_greedy: True
+test_nepisode: 128
+test_interval: 100000
+log_interval: 10000
+runner_log_interval: 10000
+learner_log_interval: 10000
+t_max: 2000000
+
+obs_last_action: False
+
+env_args:
+  map_name: simple_spread
+
