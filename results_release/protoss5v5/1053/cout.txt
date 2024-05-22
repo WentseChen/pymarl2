@@ -122,8 +122,8 @@ wandb: Tracking run with wandb version 0.15.12
 wandb: Run data is saved locally in /xxx/home/xxx/pymarl2/wandb/run-20240331_163758-svbvq27s
 wandb: Run `wandb offline` to turn off syncing.
 wandb: Syncing run qmix-10gen_protoss-a53fa
-wandb: ⭐️ View project at https://wandbwz19/SMAC
-wandb: 🚀 View run at https://wandb.ai/cwz19/SMAC/runs/svbvq27s
+wandb: ⭐️ View project at https://xxx/SMAC
+wandb: 🚀 View run at https://wandb.ai/xxx/SMAC/runs/svbvq27s
 Mixer Size: 
 105.664K
 [INFO 16:38:34] my_main Beginning training for 10050000 timesteps
