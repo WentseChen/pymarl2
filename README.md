@@ -28,13 +28,6 @@ capability_config:
     n_enemies: 10
 ```
 
-## Code Structure
-
-you can find 
-* the network structure of soft-QMIX in `src/modules/mixers/nmix.py`
-* the training algorithm in `src/learners/nq_learner.py`
-* the action selection logic in `src/components/action_selectors.py`
-* the td-lambda algrithm in `src/utils/rl_utils.py`
 
 
 
